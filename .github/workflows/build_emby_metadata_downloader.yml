@@ -43,7 +43,7 @@ jobs:
 
       -
         name: Build Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./emby_metadata_downloader
           file: emby_metadata_downloader/Dockerfile
@@ -51,6 +51,8 @@ jobs:
             linux/amd64
             linux/arm64/v8
             linux/arm/v7
+          build-args: |
+            BRANCH=main
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -32,41 +32,13 @@ function ERROR() {
     echo -e "${Time} ${ERROR} ${1}"
 }
 
-function pull_run_glue() {
+# 弃用此脚本
+if [ -n "$(date)" ]; then
+    ERROR "此脚本已弃用！"
+    exit 0
+fi
 
-    if docker inspect xiaoyaliu/glue:latest > /dev/null 2>&1; then
-        local_sha=$(docker inspect --format='{{index .RepoDigests 0}}' xiaoyaliu/glue:latest | cut -f2 -d:)
-        remote_sha=$(curl -s "https://hub.docker.com/v2/repositories/xiaoyaliu/glue/tags/latest" | grep -o '"digest":"[^"]*' | grep -o '[^"]*$' | tail -n1 | cut -f2 -d:)
-        if [ ! "$local_sha" == "$remote_sha" ]; then
-            docker rmi xiaoyaliu/glue:latest
-            if docker pull xiaoyaliu/glue:latest; then
-                INFO "镜像拉取成功！"
-            else
-                ERROR "镜像拉取失败！"
-                exit 1
-            fi
-        fi
-    else
-        if docker pull xiaoyaliu/glue:latest; then
-            INFO "镜像拉取成功！"
-        else
-            ERROR "镜像拉取失败！"
-            exit 1
-        fi
-    fi
-
-    docker run -i \
-        --security-opt seccomp=unconfined \
-        --rm \
-        --net=host \
-        -e LANG=C.UTF-8 \
-        -v "${data_dir}:${data_dir}" \
-        xiaoyaliu/glue:latest \
-        "${@}"
-
-}
-
-files=(tvbox.zip update.zip index.zip version.txt)
+files=(tvbox.zip update.zip index.zip)
 base_urls=(
     "https://gitlab.com/xiaoyaliu/data/-/raw/main/"
     "https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
@@ -74,6 +46,12 @@ base_urls=(
     "https://fastly.jsdelivr.net/gh/xiaoyaliu00/data@latest/"
     "https://521github.com/extdomains/github.com/xiaoyaliu00/data/raw/main/"
     "https://cors.zme.ink/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://git.jasonml.xyz/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://cdn.wygg.shop/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://gh.ddlc.top/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://git.886.be/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://gh.idayer.com/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
+    "https://slink.ltd/https://raw.githubusercontent.com/xiaoyaliu00/data/main/"
 )
 
 if [ -z "${1}" ]; then
@@ -83,14 +61,30 @@ else
     data_dir="${1}/data"
 fi
 
+if [ -f "${data_dir}/version.txt" ]; then
+    OLD_VERSION=$(cat "${data_dir}"/version.txt)
+    INFO "本地数据版本：${OLD_VERSION}"
+else
+    OLD_VERSION=none
+fi
+
 for base_url in "${base_urls[@]}"; do
-    if pull_run_glue curl --insecure -fsSL "${base_url}version.txt"; then
+    if curl --insecure -fsSL -o "${data_dir}/version.txt" "${base_url}version.txt"; then
         available_url=${base_url}
+        NEW_VERSION=$(cat "${data_dir}"/version.txt)
+        INFO "远端数据版本：${NEW_VERSION}"
         break
     fi
 done
 
-for file in "${files[@]}"; do
-    pull_run_glue wget --no-check-certificate -nc -O "${data_dir}/${file}" "${available_url}${file}"
-    INFO "$available_url$file 更新成功"
-done
+if [ "${OLD_VERSION}" != "${NEW_VERSION}" ]; then
+    for file in "${files[@]}"; do
+        if curl --insecure -fsSL -o "${data_dir}/${file}" "${available_url}${file}"; then
+            INFO "$available_url$file 更新成功！"
+        else
+            ERROR "$available_url$file 更新失败！"
+        fi
+    done
+else
+    INFO "无需更新，跳过下载！"
+fi
